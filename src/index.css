@@ -1,0 +1,18 @@
+@import "tailwindcss";
+
+@keyframes slowFadeIn {
+  0% {
+    opacity: 0;
+    transform: translateY(20px); /* Start lower for better effect */
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-slow-appear {
+  /* Increased duration to 5s for a very slow premium feel */
+  animation: slowFadeIn 5s cubic-bezier(0.2, 0.8, 0.2, 1) 0.5s forwards;
+  opacity: 0;
+}
