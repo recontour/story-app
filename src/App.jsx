@@ -451,8 +451,13 @@ export default function StoryApp() {
       <div className="w-full min-h-[100dvh] bg-neutral-950 text-white flex flex-col font-sans">
         <div className="flex-1 flex flex-col items-center justify-center p-6 max-w-md mx-auto w-full">
           <div className="mb-12 text-center space-y-4">
-            <div className="inline-block p-4 rounded-full bg-white/5 border border-white/10 mb-4">
-              <Sparkles className="w-8 h-8 text-yellow-200" />
+            {/* Replaced Sparkles with Image */}
+            <div className="inline-block p-4 rounded-full bg-white/5 border border-white/10 mb-4 shadow-xl">
+              <img
+                src="/logo.png"
+                alt="App Logo"
+                className="w-12 h-12 object-contain drop-shadow-lg"
+              />
             </div>
             <h1 className="text-4xl font-bold tracking-tighter bg-gradient-to-br from-white to-neutral-500 bg-clip-text text-transparent">
               AI Tales

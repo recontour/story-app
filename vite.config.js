@@ -5,10 +5,10 @@ import react from "@vitejs/plugin-react";
 export default defineConfig({
   plugins: [react()],
   build: {
-    target: "es2020", // This fixes the import.meta error
+    target: "es2020", // This allows the use of import.meta
   },
   esbuild: {
-    target: "es2020",
+    target: "es2020", // This allows the use of import.meta
   },
   optimizeDeps: {
     esbuildOptions: {
