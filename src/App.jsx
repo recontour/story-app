@@ -360,7 +360,7 @@ export default function StoryApp() {
             "story": "The narrative text...",
             "options": ["Choice A text", "Choice B text"]
           }
-          IMPORTANT: Ensure 'Choice A text' and 'Choice B text' are descriptive and can be 100 charecter long, not more, fitting neatly on two lines in a large button container.
+          IMPORTANT: Ensure 'Choice A text' and 'Choice B text' are descriptive and can never be more than 100 charecters, not more, fitting neatly on two lines in a large button container.
           Make the story engaging, descriptive, and immersive.
         `;
       } else {
@@ -380,7 +380,7 @@ export default function StoryApp() {
             "story": "The narrative text...",
             "options": ${isEnding ? "[]" : '["Choice A", "Choice B"]'}
           }
-          IMPORTANT: Ensure 'Choice A text' and 'Choice B text' are descriptive and no more than 12 words, fitting neatly on two lines in a large button container.
+          IMPORTANT: Ensure 'Choice A text' and 'Choice B text' are descriptive and can never be more than 100 charecters, fitting neatly on two lines in a large button container.
         `;
       }
 
