@@ -8,7 +8,6 @@ import {
   ChevronRight,
   Terminal,
   XCircle,
-  Save,
 } from "lucide-react";
 
 // --- Configuration & Constants ---
@@ -86,7 +85,7 @@ const LOADING_MESSAGES = {
 const MAX_CHAPTERS = 5;
 const SCENES_PER_CHAPTER = 5;
 const CHAR_TARGET = 700;
-const STORAGE_KEY = "story_app_save_v1";
+const STORAGE_KEY = "story_app_save_v3";
 
 // --- Helper: Robust Typewriter Hook ---
 const useTypewriter = (text, speed = 1, onComplete) => {
@@ -152,12 +151,78 @@ const useTypewriter = (text, speed = 1, onComplete) => {
   return { displayedText, isTyping, skip };
 };
 
+// --- Component to render the actively typing/current scene ---
+function CurrentSceneRenderer({
+  text,
+  onTypingComplete,
+  isEnding,
+  currentPage,
+  skipAnimation,
+}) {
+  // FIX: Destructure isTyping from useTypewriter hook
+  const { displayedText, skip, isTyping } = useTypewriter(text, 30, () => {
+    onTypingComplete();
+  });
+
+  const finalText = skipAnimation ? text : displayedText;
+
+  useEffect(() => {
+    if (skipAnimation && onTypingComplete) {
+      onTypingComplete();
+    }
+  }, [skipAnimation, onTypingComplete]);
+
+  // Effect to scroll to the newly appearing content when component mounts or text changes
+  useEffect(() => {
+    const mainScroll = document.querySelector(".story-scroll-area");
+    if (mainScroll) {
+      // Scroll to the TOP of the page when new text is received (the "page turn" effect)
+      if (displayedText.length === 0 && text) {
+        mainScroll.scrollTop = 0;
+      }
+      // Then, scroll to the bottom as text types out
+      if (displayedText.length > 0) {
+        mainScroll.scrollTop = mainScroll.scrollHeight;
+      }
+    }
+  }, [text, displayedText.length]);
+
+  return (
+    <div className="relative" onClick={skip}>
+      <p className="text-base md:text-lg leading-relaxed text-neutral-300 whitespace-pre-line font-sans">
+        {finalText}
+        {!skipAnimation && displayedText.length < (text?.length || 0) && (
+          <span className="inline-block w-2 h-5 bg-blue-400/50 ml-1 animate-pulse align-middle" />
+        )}
+      </p>
+      {/* Page counter at the end of the current narrative text */}
+      <div className="mt-2 text-right">
+        <span className="text-[10px] text-neutral-600 font-mono uppercase tracking-widest">
+          Page {currentPage}
+        </span>
+      </div>
+      {isEnding && finalText?.length === text?.length && (
+        <div className="mt-8 flex justify-center">
+          <Sparkles className="text-yellow-400 animate-spin-slow w-8 h-8 opacity-50" />
+        </div>
+      )}
+
+      {/* NEW FIX: CSS calc() spacer element to push the typing content down */}
+      {isTyping && <div className="min-h-spacer" />}
+    </div>
+  );
+}
+
 // --- Main Application Component ---
 export default function StoryApp() {
   const [gameState, setGameState] = useState("loading_save");
   const [genre, setGenre] = useState(null);
   const [storyTitle, setStoryTitle] = useState("");
+
+  // History stores ALL narrative segments and user choices
   const [history, setHistory] = useState([]);
+
+  // currentData stores the options for the current scene
   const [currentData, setCurrentData] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const [loadingMsg, setLoadingMsg] = useState("");
@@ -171,12 +236,9 @@ export default function StoryApp() {
   const [showOptions, setShowOptions] = useState(false);
   const [showQuitConfirm, setShowQuitConfirm] = useState(false);
 
-  // ---------------------------------------------------------
-  // IMPORTANT: This pulls the key from your .env file
-  // ---------------------------------------------------------
   const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
 
-  // --- Persistence Effect ---
+  // --- Persistence Effect (Save and Load) ---
   useEffect(() => {
     const savedData = localStorage.getItem(STORAGE_KEY);
     if (savedData) {
@@ -203,6 +265,7 @@ export default function StoryApp() {
     }
   }, []);
 
+  // Save State on Change
   useEffect(() => {
     if (gameState === "playing" || gameState === "error") {
       const stateToSave = {
@@ -240,9 +303,23 @@ export default function StoryApp() {
     setShowOptions(false);
     setErrorMsg("");
 
+    // Add the user's choice to history *before* calling API
+    if (selectedOption) {
+      setHistory((prev) => [...prev, { role: "user", text: selectedOption }]);
+    }
+
     try {
       let prompt = "";
       const isEnding = chapter === MAX_CHAPTERS && scene === SCENES_PER_CHAPTER;
+
+      // Filter history for model context (narrative texts + user choices)
+      // We only send the last few model/user interactions to maintain context
+      const context = history
+        .map(
+          (h) => `${h.role === "user" ? "User chose:" : "Narrative:"} ${h.text}`
+        )
+        .slice(-5)
+        .join("\n");
 
       if (history.length === 0) {
         prompt = `
@@ -251,23 +328,22 @@ export default function StoryApp() {
           Task: Write the opening scene (Chapter 1, Scene 1) of a story.
           Length: Approximately ${CHAR_TARGET} characters.
           Format: Valid JSON.
+          Keep simple engish.
           Structure:
           {
             "title": "A short, creative title for this story",
             "story": "The narrative text...",
             "options": ["Choice A text", "Choice B text"]
           }
+          IMPORTANT: Ensure 'Choice A text' and 'Choice B text' are descriptive and no more than 10 words, fitting neatly on two lines in a large button container.
           Make the story engaging, descriptive, and immersive.
         `;
       } else {
         prompt = `
           Continue the story.
+          Keep simple engish.
           Current Progress: Chapter ${chapter}, Scene ${scene}.
-          Previous Context Summary: ${history
-            .slice(-3)
-            .map((h) => h.text)
-            .join(" ")}...
-          The user just chose: "${selectedOption}".
+          Previous Context Summary (Most recent actions/scenes): ${context}
           
           ${
             isEnding
@@ -280,6 +356,7 @@ export default function StoryApp() {
             "story": "The narrative text...",
             "options": ${isEnding ? "[]" : '["Choice A", "Choice B"]'}
           }
+          IMPORTANT: Ensure 'Choice A text' and 'Choice B text' are descriptive and no more than 10 words, fitting neatly on two lines in a large button container.
         `;
       }
 
@@ -330,19 +407,14 @@ export default function StoryApp() {
         setStoryTitle(parsedData.title);
       }
 
-      setCurrentData(parsedData);
-
+      // Append new narrative text to history, but only store the model role text
       setHistory((prev) => [
         ...prev,
-        {
-          role: "user",
-          text: selectedOption
-            ? `User chose: ${selectedOption}`
-            : "Start story",
-        },
         { role: "model", text: parsedData.story },
       ]);
 
+      // Update options/current data
+      setCurrentData(parsedData);
       setGameState("playing");
     } catch (error) {
       console.error(error);
@@ -363,6 +435,7 @@ export default function StoryApp() {
   };
 
   useEffect(() => {
+    // Logic to start the story generation on genre select
     if (
       genre &&
       history.length === 0 &&
@@ -374,6 +447,7 @@ export default function StoryApp() {
   }, [genre]);
 
   const handleOptionClick = (option) => {
+    // 1. Calculate next step
     let nextScene = scene + 1;
     let nextChapter = chapter;
 
@@ -384,6 +458,8 @@ export default function StoryApp() {
 
     setChapter(nextChapter);
     setScene(nextScene);
+
+    // 2. Generate new segment, passing the chosen option
     generateStorySegment(option);
   };
 
@@ -408,6 +484,13 @@ export default function StoryApp() {
     confirmQuit();
   };
 
+  // Calculate Page Number (1-25)
+  // Total narrative segments (model roles) in history
+  const currentPage = history.filter((h) => h.role === "model").length;
+
+  // Get the most recent narrative text for the typewriter.
+  const currentNarrative = currentData?.story || "";
+
   // --- Renders ---
 
   if (gameState === "loading_save") {
@@ -418,18 +501,17 @@ export default function StoryApp() {
     );
   }
 
-  if (isLoading) {
+  // FIX: Only show full screen loader for the initial genre select (history.length === 0)
+  if (isLoading && history.length === 0) {
     return (
       <div className="w-full h-[100dvh] bg-black text-white flex flex-col items-center justify-center p-6 relative overflow-hidden font-sans">
         <div
-          className={`absolute inset-0 opacity-20 animate-pulse ${
+          className={`absolute inset-0 opacity-20 ${
             genre ? genre.bg.replace("/30", "/80") : "bg-gray-900"
           }`}
         ></div>
-        <div className="z-10 flex flex-col items-center gap-6 text-center animate-in fade-in duration-700">
-          {genre && (
-            <genre.icon size={64} className={`animate-bounce ${genre.color}`} />
-          )}
+        <div className="z-10 flex flex-col items-center gap-6 text-center">
+          {genre && <genre.icon size={64} className={`${genre.color}`} />}
           <div className="space-y-2">
             <h2 className="text-2xl font-bold tracking-widest text-white">
               CHAPTER {chapter}
@@ -451,7 +533,6 @@ export default function StoryApp() {
       <div className="w-full min-h-[100dvh] bg-neutral-950 text-white flex flex-col font-sans">
         <div className="flex-1 flex flex-col items-center justify-center p-6 max-w-md mx-auto w-full">
           <div className="mb-12 text-center space-y-4">
-            {/* Replaced Sparkles with Image */}
             <div className="inline-block p-4 rounded-full bg-white/5 border border-white/10 mb-4 shadow-xl">
               <img
                 src="/logo.png"
@@ -528,7 +609,8 @@ export default function StoryApp() {
 
   // 4. Playing Screen
   return (
-    <div className="w-full h-[100dvh] bg-neutral-950 text-white relative overflow-hidden flex flex-col font-sans">
+    // Main container uses h-screen for fixed height
+    <div className="w-full h-screen flex flex-col bg-neutral-950 text-white relative overflow-hidden font-sans">
       {/* Background Ambient Color */}
       {genre && (
         <div
@@ -565,16 +647,19 @@ export default function StoryApp() {
         </div>
       )}
 
-      {/* Header */}
-      <div className="flex-none relative z-10 w-full max-w-md mx-auto p-4 py-4 flex justify-between items-start border-b border-white/5 bg-black/40 backdrop-blur-md">
-        <div className="flex flex-col items-start">
-          <h1 className="text-lg font-bold text-blue-400 tracking-tight leading-tight">
-            {storyTitle || genre?.label || "Unknown Story"}
-          </h1>
-          <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-gray-400 mt-1">
-            <span>Chapter {chapter}</span>
+      {/* Header - Fixed top bar */}
+      <div className="flex-none z-10 w-full max-w-md mx-auto p-4 py-4 flex justify-between items-start border-b border-white/5 bg-black/70 backdrop-blur-md header-fixed-height">
+        <div className="flex items-center gap-3">
+          <div className="flex flex-col items-start">
+            <h1 className="text-lg font-bold text-blue-400 tracking-tight leading-tight line-clamp-1">
+              {storyTitle || genre?.label || "Unknown Story"}
+            </h1>
+            <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-gray-400 mt-1">
+              <span>Chapter {chapter}</span>
+            </div>
           </div>
         </div>
+
         <button
           onClick={triggerQuit}
           className="p-2 text-gray-500 hover:text-red-400 transition-colors"
@@ -584,80 +669,139 @@ export default function StoryApp() {
         </button>
       </div>
 
-      {/* Story Content */}
-      <div className="flex-1 w-full max-w-md mx-auto relative overflow-y-auto no-scrollbar scroll-smooth">
-        <div className="p-6 pb-2 min-h-full">
-          <StoryContent
-            text={currentData?.story}
-            onTypingComplete={() => setShowOptions(true)}
-            isEnding={chapter === MAX_CHAPTERS && scene === SCENES_PER_CHAPTER}
-            skipAnimation={showOptions}
-          />
-        </div>
-      </div>
+      {/* Story Content - The main scrollable area */}
+      {/* Height is flexible (flex-grow), filling space between fixed header and footer */}
+      <div className="flex-grow story-scroll-area w-full max-w-md mx-auto relative overflow-y-auto overflow-x-hidden pt-4">
+        <div className="p-6 pb-2">
+          {/* Render all previous, completed scenes */}
+          {history.map((item, index) => {
+            if (item.role === "model" && index < history.length - 1) {
+              // Render all EXCEPT the very last model output
+              // Calculate page index (1-based count of model narratives)
+              const pageIndex = history
+                .slice(0, index + 1)
+                .filter((h) => h.role === "model").length;
 
-      {/* Options Footer - Seamless integration */}
-      <div className="flex-none w-full z-20">
-        <div className="max-w-md mx-auto p-4 py-4 space-y-3">
-          {showOptions && currentData?.options?.length > 0 && (
-            <div className="animate-slow-appear space-y-3">
-              {currentData.options.map((opt, idx) => (
-                <button
-                  key={idx}
-                  onClick={() => handleOptionClick(opt)}
-                  className="w-full py-2 px-3 text-sm bg-neutral-900/80 hover:bg-neutral-800 border border-white/10 backdrop-blur-md text-center rounded-lg transition-all active:scale-95 flex items-center justify-center group shadow-lg"
-                >
-                  <span className="text-neutral-200 group-hover:text-white font-medium leading-normal">
-                    {opt}
-                  </span>
-                </button>
-              ))}
-            </div>
-          )}
+              return (
+                <div key={`page-${index}`} className="mb-8">
+                  <p className="text-base md:text-lg leading-relaxed text-neutral-300 whitespace-pre-line font-sans">
+                    {item.text}
+                  </p>
+                  {/* Page counter at the end of the narrative text */}
+                  <div className="mt-2 text-right">
+                    <span className="text-[10px] text-neutral-600 font-mono uppercase tracking-widest">
+                      Page {pageIndex}
+                    </span>
+                  </div>
+                </div>
+              );
+            }
+            return null;
+          })}
 
-          {showOptions &&
-            (!currentData?.options || currentData.options.length === 0) && (
-              <div className="animate-slow-appear text-center">
-                <p className="text-neutral-500 text-sm mb-4">The End.</p>
-                <button
-                  onClick={resetGame}
-                  className="px-8 py-3 bg-white text-black font-bold rounded-full hover:scale-105 transition-transform"
-                >
-                  Play Again
-                </button>
+          {/* Render the current, actively typing scene (which is the last item in history) */}
+          {history.length > 0 &&
+            history[history.length - 1].role === "model" && (
+              <div className="mb-2">
+                <CurrentSceneRenderer
+                  text={history[history.length - 1].text} // Pass the last piece of narrative text
+                  onTypingComplete={() => setShowOptions(true)}
+                  isEnding={
+                    chapter === MAX_CHAPTERS && scene === SCENES_PER_CHAPTER
+                  }
+                  skipAnimation={showOptions}
+                  currentPage={currentPage}
+                />
               </div>
             )}
+
+          {/* Spacer is no longer needed here as height is handled dynamically in CurrentSceneRenderer */}
         </div>
       </div>
-    </div>
-  );
-}
 
-// --- Story Content with Robust Typing ---
-function StoryContent({ text, onTypingComplete, isEnding, skipAnimation }) {
-  const { displayedText, skip } = useTypewriter(text, 30, onTypingComplete); // Speed 30ms
-
-  const finalText = skipAnimation ? text : displayedText;
-
-  useEffect(() => {
-    if (skipAnimation && onTypingComplete) {
-      onTypingComplete();
-    }
-  }, [skipAnimation, onTypingComplete]);
-
-  return (
-    <div className="relative" onClick={skip}>
-      <p className="text-base md:text-lg leading-relaxed text-neutral-300 whitespace-pre-line font-sans">
-        {finalText}
-        {!skipAnimation && displayedText.length < (text?.length || 0) && (
-          <span className="inline-block w-2 h-5 bg-blue-400/50 ml-1 animate-pulse align-middle" />
-        )}
-      </p>
-      {isEnding && finalText?.length === text?.length && (
-        <div className="mt-8 flex justify-center">
-          <Sparkles className="text-yellow-400 animate-spin-slow w-8 h-8 opacity-50" />
+      {/* Options Footer - Fixed bottom bar with integrated loading */}
+      <div className="flex-none w-full z-20 bg-neutral-950/90 backdrop-blur-sm border-t border-white/5 story-footer footer-fixed-height">
+        <div className="max-w-md mx-auto p-4 py-3 space-y-2 relative h-[140px]">
+          {" "}
+          {/* **FIX 1: Apply Fixed Height and Relative Positioning** */}
+          {/* Integrated Loading Indicator (centered vertically) */}
+          {isLoading && history.length > 0 && (
+            // FIX 2: Use absolute positioning to fill the fixed height container
+            <div className="absolute inset-0 text-center flex flex-col items-center justify-center animate-in fade-in duration-500 gap-3">
+              {genre && (
+                <genre.icon
+                  size={20}
+                  className={`animate-bounce ${genre.color}`}
+                />
+              )}
+              <p key={loadingMsg} className="text-gray-400 text-sm">
+                {loadingMsg}
+              </p>
+            </div>
+          )}
+          {/* Options Container: Smooth transition when typing is done */}
+          {/* FIX 3: Use absolute positioning to fill the fixed height container */}
+          <div
+            className={`
+                    transition-opacity duration-[2000ms] ease-out space-y-2 
+                    ${
+                      showOptions &&
+                      currentData?.options?.length > 0 &&
+                      !isLoading
+                        ? "opacity-100 pointer-events-auto"
+                        : "opacity-0 pointer-events-none"
+                    }
+                    absolute inset-0 p-4 py-3 flex flex-col justify-center
+                `}
+          >
+            {currentData?.options?.length > 0 && (
+              <>
+                {currentData.options.map((opt, idx) => (
+                  <button
+                    key={idx}
+                    onClick={() => handleOptionClick(opt)}
+                    // FIX: Reduced padding to py-2 to make buttons shorter/more compact
+                    className="w-full py-2 px-3 text-sm bg-neutral-900/80 hover:bg-neutral-800 border border-white/10 backdrop-blur-md text-center rounded-lg transition-all active:scale-95 flex items-center justify-center group shadow-lg"
+                  >
+                    {/* Set font to text-sm */}
+                    <span className="text-neutral-200 group-hover:text-white font-medium leading-snug">
+                      {opt}
+                    </span>
+                  </button>
+                ))}
+              </>
+            )}
+          </div>
+          {/* End State Container: Also use transition-opacity for smooth exit */}
+          <div
+            className={`
+                    transition-opacity duration-[2000ms] ease-out 
+                    ${
+                      showOptions &&
+                      (!currentData?.options ||
+                        currentData.options.length === 0) &&
+                      !isLoading
+                        ? "opacity-100 pointer-events-auto"
+                        : "opacity-0 pointer-events-none"
+                    }
+                    absolute inset-0 p-4 py-3 flex flex-col justify-center
+                 `}
+          >
+            {showOptions &&
+              (!currentData?.options || currentData.options.length === 0) && (
+                <div className="text-center">
+                  <p className="text-neutral-500 text-sm mb-2">The End.</p>
+                  <button
+                    onClick={resetGame}
+                    className="px-8 py-3 bg-white text-black font-bold rounded-full hover:scale-105 transition-transform"
+                  >
+                    Play Again
+                  </button>
+                </div>
+              )}
+          </div>
         </div>
-      )}
+      </div>
     </div>
   );
 }
