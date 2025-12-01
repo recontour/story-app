@@ -148,7 +148,7 @@ const useTypewriter = (text, speed = 1, onComplete) => {
     if (onCompleteRef.current) onCompleteRef.current();
   };
 
-  return { displayedText, isTyping, skip };
+  return { displayedText: displayedText, isTyping, skip };
 };
 
 // --- Component to render the actively typing/current scene ---
@@ -238,6 +238,32 @@ export default function StoryApp() {
 
   const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
 
+  // --- Viewport Maximization Effect ---
+  useEffect(() => {
+    const handleLoad = () => {
+      setTimeout(() => {
+        // Scroll down 1px to trigger hide
+        window.scrollTo(0, 1);
+        // Optional: Scroll back to top immediately after
+        setTimeout(() => {
+          window.scrollTo(0, 0);
+        }, 0);
+      }, 0);
+    };
+
+    // Use load listener for safety, or run immediately if already loaded
+    if (document.readyState === "complete") {
+      handleLoad();
+    } else {
+      window.addEventListener("load", handleLoad);
+    }
+
+    // Clean up the event listener if component unmounts
+    return () => {
+      window.removeEventListener("load", handleLoad);
+    };
+  }, []);
+
   // --- Persistence Effect (Save and Load) ---
   useEffect(() => {
     const savedData = localStorage.getItem(STORAGE_KEY);
@@ -323,25 +349,23 @@ export default function StoryApp() {
 
       if (history.length === 0) {
         prompt = `
-          You are an interactive storyteller. 
+          You are an interactive storyteller in simple english. 
           Genre: ${genre.label}. 
           Task: Write the opening scene (Chapter 1, Scene 1) of a story.
           Length: Approximately ${CHAR_TARGET} characters.
           Format: Valid JSON.
-          Keep simple engish.
           Structure:
           {
             "title": "A short, creative title for this story",
             "story": "The narrative text...",
             "options": ["Choice A text", "Choice B text"]
           }
-          IMPORTANT: Ensure 'Choice A text' and 'Choice B text' are descriptive and no more than 10 words, fitting neatly on two lines in a large button container.
+          IMPORTANT: Ensure 'Choice A text' and 'Choice B text' should be aroung 14 words, fitting neatly on two lines in a large button container.
           Make the story engaging, descriptive, and immersive.
         `;
       } else {
         prompt = `
-          Continue the story.
-          Keep simple engish.
+          Continue the story in simple english.
           Current Progress: Chapter ${chapter}, Scene ${scene}.
           Previous Context Summary (Most recent actions/scenes): ${context}
           
@@ -683,7 +707,7 @@ export default function StoryApp() {
                 .filter((h) => h.role === "model").length;
 
               return (
-                <div key={`page-${index}`} className="mb-8">
+                <div key={`page-${index}`} className="mb-6">
                   <p className="text-base md:text-lg leading-relaxed text-neutral-300 whitespace-pre-line font-sans">
                     {item.text}
                   </p>
@@ -721,12 +745,12 @@ export default function StoryApp() {
 
       {/* Options Footer - Fixed bottom bar with integrated loading */}
       <div className="flex-none w-full z-20 bg-neutral-950/90 backdrop-blur-sm border-t border-white/5 story-footer footer-fixed-height">
-        <div className="max-w-md mx-auto p-4 py-3 space-y-2 relative h-[140px]">
+        <div className="max-w-md mx-auto relative h-[140px]">
           {" "}
-          {/* **FIX 1: Apply Fixed Height and Relative Positioning** */}
+          {/* **FIX: Fixed Height and Relative Positioning** */}
           {/* Integrated Loading Indicator (centered vertically) */}
           {isLoading && history.length > 0 && (
-            // FIX 2: Use absolute positioning to fill the fixed height container
+            // FIX: Use absolute positioning to fill the fixed height container
             <div className="absolute inset-0 text-center flex flex-col items-center justify-center animate-in fade-in duration-500 gap-3">
               {genre && (
                 <genre.icon
@@ -740,7 +764,7 @@ export default function StoryApp() {
             </div>
           )}
           {/* Options Container: Smooth transition when typing is done */}
-          {/* FIX 3: Use absolute positioning to fill the fixed height container */}
+          {/* FIX: Use absolute positioning to fill the fixed height container */}
           <div
             className={`
                     transition-opacity duration-[2000ms] ease-out space-y-2 
@@ -760,7 +784,7 @@ export default function StoryApp() {
                   <button
                     key={idx}
                     onClick={() => handleOptionClick(opt)}
-                    // FIX: Reduced padding to py-2 to make buttons shorter/more compact
+                    // Reduced padding to py-2 to make buttons shorter/more compact
                     className="w-full py-2 px-3 text-sm bg-neutral-900/80 hover:bg-neutral-800 border border-white/10 backdrop-blur-md text-center rounded-lg transition-all active:scale-95 flex items-center justify-center group shadow-lg"
                   >
                     {/* Set font to text-sm */}
