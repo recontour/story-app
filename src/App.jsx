@@ -360,7 +360,7 @@ export default function StoryApp() {
             "story": "The narrative text...",
             "options": ["Choice A text", "Choice B text"]
           }
-          IMPORTANT: Ensure 'Choice A text' and 'Choice B text' should be aroung 14 words, fitting neatly on two lines in a large button container.
+          IMPORTANT: Ensure 'Choice A text' and 'Choice B text' are descriptive and no more than 10 words, fitting neatly on two lines in a large button container.
           Make the story engaging, descriptive, and immersive.
         `;
       } else {
@@ -634,7 +634,7 @@ export default function StoryApp() {
   // 4. Playing Screen
   return (
     // Main container uses h-screen for fixed height
-    <div className="w-full h-screen flex flex-col bg-neutral-950 text-white relative overflow-hidden font-sans">
+    <div className="w-full h-dvh flex flex-col bg-neutral-950 text-white relative overflow-hidden font-sans">
       {/* Background Ambient Color */}
       {genre && (
         <div
