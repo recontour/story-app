@@ -360,7 +360,7 @@ export default function StoryApp() {
             "story": "The narrative text...",
             "options": ["Choice A text", "Choice B text"]
           }
-          IMPORTANT: Ensure 'Choice A text' and 'Choice B text' are descriptive and no more than 10 words, fitting neatly on two lines in a large button container.
+          IMPORTANT: Ensure 'Choice A text' and 'Choice B text' are descriptive and can be 100 charecter long, not more, fitting neatly on two lines in a large button container.
           Make the story engaging, descriptive, and immersive.
         `;
       } else {
@@ -380,7 +380,7 @@ export default function StoryApp() {
             "story": "The narrative text...",
             "options": ${isEnding ? "[]" : '["Choice A", "Choice B"]'}
           }
-          IMPORTANT: Ensure 'Choice A text' and 'Choice B text' are descriptive and no more than 10 words, fitting neatly on two lines in a large button container.
+          IMPORTANT: Ensure 'Choice A text' and 'Choice B text' are descriptive and no more than 12 words, fitting neatly on two lines in a large button container.
         `;
       }
 
@@ -535,7 +535,9 @@ export default function StoryApp() {
           }`}
         ></div>
         <div className="z-10 flex flex-col items-center gap-6 text-center">
-          {genre && <genre.icon size={64} className={`${genre.color}`} />}
+          {genre && (
+            <genre.icon size={64} className={`animate-bounce ${genre.color}`} />
+          )}
           <div className="space-y-2">
             <h2 className="text-2xl font-bold tracking-widest text-white">
               CHAPTER {chapter}
